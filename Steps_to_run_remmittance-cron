@@ -1,0 +1,45 @@
+pipewayweb@pipeway-web:~$ crontab -l 
+# Edit this file to introduce tasks to be run by cron.
+# 
+# Each task to run has to be defined through a single line
+# indicating with different fields when the task will be run
+# and what command to run for the task
+# 
+# To define the time you can provide concrete values for
+# minute (m), hour (h), day of month (dom), month (mon),
+# and day of week (dow) or use '*' in these fields (for 'any').
+# 
+# Notice that tasks will be started based on the cron's system
+# daemon's notion of time and timezones.
+# 
+# Output of the crontab jobs (including errors) is sent through
+# email to the user the crontab file belongs to (unless redirected).
+# 
+# For example, you can run a backup of all your user accounts
+# at 5 a.m every week with:
+# 0 5 * * 1 tar -zcf /var/backups/home.tgz /home/
+# 
+# For more information see the manual pages of crontab(5) and cron(8)
+# 
+# m h  dom mon dow   command
+#........................................................................................................................
+#30 11 * * 1-5 /bin/bash /var/www/html/cron/scheduler_167.sh >> /home/pipewayweb/log/scheduler_job_error_log.txt
+#48 15 * * 1-5 /bin/bash /var/www/html/cron/test.sh >> /home/pipewayweb/log/scr_job_error_log.txt 2>&1
+#...........................................................................................................................
+30 07 * * 1-5 /usr/bin/php8.2 /var/www/html/bi/dist/Invoicing/court-costs-cron.php >> /home/pipewayweb/log/cost_cron.txt
+35 07 * * 1-5 /usr/bin/php8.2 /var/www/html/bi/dist/Invoicing/Direct-pay-cron.php >> /home/pipewayweb/log/Directpay_cron.txt
+40 07 * * 1-5 /bin/bash /var/www/html/cron/remittence_cron.sh >> /home/pipewayweb/log/remit_cron.txt
+#............................................................................................................................
+
+
+pipewayweb@pipeway-web:~$ cat /var/www/html/cron/remittence_cron.sh
+#! /bin/bash
+set -x 
+      /usr/bin/php8.2 -f  /var/www/html/bi/dist/Invoicing/Remittance-cron.php
+      exit
+
+#-----------------------------------
+
+vi /var/www/html/bi/dist/Invoicing/Remittance-cron_KNT23JAN2026.php
+
+/usr/bin/php8.2 -f  /var/www/html/bi/dist/Invoicing/Remittance-cron_KNT23JAN2026.php
