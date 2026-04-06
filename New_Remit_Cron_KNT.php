@@ -22,14 +22,18 @@
  *         |            |                     | - Added developer documentation
  *         |            |                     | - Enhanced error tracking
  * ----------------------------------------------------------------------------
- */
+ * 1.1     | 2026-04-06 | MS06APR2026         | Added AS400 ODBC connection            
+ *         |            |                     | replaced PDO $conndb2 query with                    
+ *         |            |                     | ODBC AS400 direct connection    
+ *-----------------------------------------------------------------------------
+ */ 
 
 error_reporting(1); 
 date_default_timezone_set('America/New_York');
 require_once('/var/www/html/bi/dist/PHPMailer/class.phpmailer.php');
 require '/var/www/html/bi/dist/PHPMailer/PHPMailerAutoload.php';
 require '/var/www/html/bi/dist/PHPMailer/class.smtp.php';
-include_once('pdoconn.php');
+// include_once('pdoconn.php');                               //MS06APR2026
 require '/var/www/html/bi/dist/vendor/autoload.php';
 
 use Knp\Snappy\Pdf;
@@ -47,6 +51,59 @@ function writeLog($message, $level = 'INFO') {
     $logMessage = "[{$timestamp}] [{$level}] {$message}" . PHP_EOL;
     file_put_contents(LOG_FILE, $logMessage, FILE_APPEND);
 }
+
+// MS06APR2026 - start
+// AS400 ODBC connection constants — update DSN/user/pass as per /etc/odbc.ini
+define('AS400_DSN',     'DB2');              // DSN name configured in /etc/odbc.ini
+define('AS400_HOST',    '192.168.21.8');     // AS400 hostname or IP
+define('AS400_LIB',     'AACALIB');          // Default library/schema
+define('AS400_USER',    'TESTADMIN');        // AS400 user profile
+define('AS400_PASS',    'x1ns8@p5d7');       // AS400 password
+/**
+ * Connect to AS400 via ODBC
+ * @return resource ODBC connection resource
+ * @throws Exception if connection fails
+ */
+function connectAS400() {
+    $conn = @odbc_connect(AS400_DSN, AS400_USER, AS400_PASS);
+    if (!$conn) {
+        $err = odbc_errormsg();
+        writeLog('AS400 ODBC connection failed: ' . $err, 'ERROR');
+        throw new Exception('AS400 ODBC connection failed: ' . $err);
+    }
+    writeLog('AS400 ODBC connection established successfully.', 'INFO');
+    return $conn;
+}
+
+/**
+ * Execute a query on AS400 via ODBC and return results
+ * mimics PDO fetchAll(PDO::FETCH_OBJ) — returns array of stdClass objects
+ * so all existing $row->COLUMN references work without any change
+ * @param resource $conn  ODBC connection resource
+ * @param string   $query SQL query string (no parameters needed — billdate injected as string)
+ * @return array          Array of stdClass objects (same as PDO FETCH_OBJ)
+ */
+function odbc_fetch_all_obj($conn, $query) {
+    $stmt = @odbc_exec($conn, $query);
+    if (!$stmt) {
+        $err = odbc_errormsg($conn);
+        writeLog('AS400 ODBC query failed: ' . $err . ' | Query: ' . $query, 'ERROR');
+        odbc_free_result($stmt);
+        return [];
+    }
+    $results = [];
+    while ($row = odbc_fetch_array($stmt)) {
+        // Trim trailing spaces — AS400 pads CHAR fields with spaces
+        $obj = new stdClass();
+        foreach ($row as $col => $val) {
+            $obj->$col = is_string($val) ? trim($val) : $val;
+        }
+        $results[] = $obj;
+    }
+    odbc_free_result($stmt);
+    return $results;
+}
+// MS06APR2026 - end
 
 putenv('XDG_RUNTIME_DIR=/tmp/runtime-www-data');
 $snappy = new Pdf('/usr/bin/wkhtmltopdf');
@@ -87,11 +144,28 @@ if (isset($argv[1]) && !empty($argv[1])) {
 }
 writeLog('Querying database for clients with remittance transactions...');
 
+// MS06APR2026 - start
+// Replaced PDO $conndb2 query with direct AS400 ODBC connection
+// Original PDO block preserved below as reference (commented out)
 $Querycli = "SELECT PYALORGCD FROM RMAACABHS WHERE BILLDATE='" . $billdate . "' AND  RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51'  and BLAAINNM like'%R%' group by PYALORGCD";
-$Query1prepcli = $conndb2->prepare($Querycli); 
-$Query1prepcli->execute();
-$Query1prepcli->setFetchMode(PDO::FETCH_OBJ);
-$main_resultcli = $Query1prepcli->fetchAll();
+// $Query1prepcli = $conndb2->prepare($Querycli);           // MS06APR2026
+// $Query1prepcli->execute();                               // MS06APR2026
+// $Query1prepcli->setFetchMode(PDO::FETCH_OBJ);            // MS06APR2026
+// $main_resultcli = $Query1prepcli->fetchAll();            // MS06APR2026
+
+$Querycli = "SELECT PYALORGCD FROM RMAACABHS WHERE BILLDATE='" . $billdate . "' AND RMSTRANCDE >='50' AND RMSTRANCDE <= '59' AND RMSTRANCDE <> '51' AND BLAAINNM like'%R%' GROUP BY PYALORGCD";
+
+try {
+    $as400conn      = connectAS400();
+    $main_resultcli = odbc_fetch_all_obj($as400conn, $Querycli);
+    odbc_close($as400conn);                                          // MS06APR26 - close after query
+    writeLog('AS400 client query returned ' . count($main_resultcli) . ' records.', 'INFO');
+} catch (Exception $e) {
+    writeLog('Failed to fetch clients from AS400: ' . $e->getMessage(), 'ERROR');
+    $main_resultcli = [];
+}
+// MS06APR2026 - end
+
 $clientname=$main_resultcli;
 
 writeLog('Clients found: ' . count($main_resultcli));
