@@ -56,7 +56,7 @@ function writeLog($message, $level = 'INFO') {
 // AS400 ODBC connection constants — update DSN/user/pass as per /etc/odbc.ini
 define('AS400_DSN',     'DB2');              // DSN name configured in /etc/odbc.ini
 define('AS400_HOST',    '192.168.21.8');     // AS400 hostname or IP
-define('AS400_LIB',     'AACALIB');          // Default library/schema
+define('AS400_LIB',     'SABINESH');         // Default library/schema
 define('AS400_USER',    'TESTADMIN');        // AS400 user profile
 define('AS400_PASS',    'x1ns8@p5d7');       // AS400 password
 /**
@@ -147,13 +147,13 @@ writeLog('Querying database for clients with remittance transactions...');
 // MS06APR2026 - start
 // Replaced PDO $conndb2 query with direct AS400 ODBC connection
 // Original PDO block preserved below as reference (commented out)
-$Querycli = "SELECT PYALORGCD FROM RMAACABHS WHERE BILLDATE='" . $billdate . "' AND  RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51'  and BLAAINNM like'%R%' group by PYALORGCD";
+// $Querycli = "SELECT PYALORGCD FROM RMAACABHS WHERE BILLDATE='" . $billdate . "' AND  RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51'  and BLAAINNM like'%R%' group by PYALORGCD";
 // $Query1prepcli = $conndb2->prepare($Querycli);           // MS06APR2026
 // $Query1prepcli->execute();                               // MS06APR2026
 // $Query1prepcli->setFetchMode(PDO::FETCH_OBJ);            // MS06APR2026
 // $main_resultcli = $Query1prepcli->fetchAll();            // MS06APR2026
 
-$Querycli = "SELECT PYALORGCD FROM RMAACABHS WHERE BILLDATE='" . $billdate . "' AND RMSTRANCDE >='50' AND RMSTRANCDE <= '59' AND RMSTRANCDE <> '51' AND BLAAINNM like'%R%' GROUP BY PYALORGCD";
+$Querycli = "SELECT PYALORGCD FROM RMAACABLF WHERE BILLDATE='" . $billdate . "' AND RMSTRANCDE >='50' AND RMSTRANCDE <= '59' AND RMSTRANCDE <> '51' AND BLAAINNM like'%R%' GROUP BY PYALORGCD";
 
 try {
     $as400conn      = connectAS400();
@@ -612,16 +612,38 @@ $totalfirmsetasideall = 0;
 	$clientadd.=$eachclient.',';
 	
 	writeLog("Processing client: {$eachclient}");
+
+    // -------------------------------------------------------------------------
+    // MS06APR2026 - start
+    // Query to get BLAAINNM — replaced PDO $conndb2 with AS400 ODBC connection
+    // -------------------------------------------------------------------------
+
     // Query to get BLAAINNM
-    $Query1 = "SELECT BLAAINNM FROM RMAACABHS WHERE PYALORGCD='" . $eachclient . "' and BILLDATE='" . $billdate . "' AND  RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51' and BLAAINNM like'%R%' group by BLAAINNM";          
-    $Query1prep = $conndb2->prepare($Query1); 
-    $Query1prep->execute();
-    $Query1prep->setFetchMode(PDO::FETCH_OBJ);
-    $main_result = $Query1prep->fetchAll();
+    $Query1 = "SELECT BLAAINNM FROM RMAACABLF WHERE PYALORGCD='" . $eachclient . "' and BILLDATE='" . $billdate . "' AND  RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51' and BLAAINNM like'%R%' group by BLAAINNM";          
+    // $Query1prep = $conndb2->prepare($Query1);   // MS06APR2026
+    // $Query1prep->execute();                     // MS06APR2026
+    // $Query1prep->setFetchMode(PDO::FETCH_OBJ);  // MS06APR2026
+    // $main_result = $Query1prep->fetchAll();     // MS06APR2026
+
+    try {
+        $as400conn   = connectAS400();
+        $main_result = odbc_fetch_all_obj($as400conn, $Query1);
+        odbc_close($as400conn);                        // MS06APR2026 - close after query
+        writeLog("BLAAINNM query for client {$eachclient} returned " . count($main_result) . " record(s).", 'INFO');
+    } catch (Exception $e) {
+        writeLog("Failed to fetch BLAAINNM for client {$eachclient}: " . $e->getMessage(), 'ERROR');
+        $main_result = [];
+    }
+    // MS06APR2026 - end
+
 
     foreach ($main_result as $row) {
         $BLAAINNM = $row->BLAAINNM;
 
+        // ---------------------------------------------------------------------
+        // MS06APR2026 - start
+        // Query to get invoice details — replaced PDO $conndb2 with AS400 ODBC connection
+        // ---------------------------------------------------------------------  
         // Query to get invoice details
         $Query2 = "WITH
 AggregatedTable1 AS (
@@ -642,7 +664,7 @@ AggregatedTable1 AS (
         LVL2,
          ROFFCD
     FROM
-        RMAACABHS
+        RMAACABLF
     WHERE
         billdate = '" . $billdate . "'
         AND RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51' and BLAAINNM like'%R%'
@@ -693,10 +715,21 @@ FROM
 LEFT JOIN
     AggregatedTable2 B ON A.ROFFCD = B.RCLCD";//echo   $Query2 ;exit;
 
-        $Query2prep = $conndb2->prepare($Query2);   
-        $Query2prep->execute();
-        $Query2prep->setFetchMode(PDO::FETCH_OBJ); 
-        $main_result2 = $Query2prep->fetchAll();
+        // $Query2prep = $conndb2->prepare($Query2);   // MS06APR2026
+        // $Query2prep->execute();                     // MS06APR2026
+        // $Query2prep->setFetchMode(PDO::FETCH_OBJ);  // MS06APR2026
+        // $main_result2 = $Query2prep->fetchAll();    // MS06APR2026
+
+         try {
+            $as400conn    = connectAS400();
+            $main_result2 = odbc_fetch_all_obj($as400conn, $Query2);
+            odbc_close($as400conn);                        // MS06APR2026 - close after query
+            writeLog("Invoice detail query for client {$eachclient} / BLAAINNM {$BLAAINNM} returned " . count($main_result2) . " record(s).", 'INFO');
+        } catch (Exception $e) {
+            writeLog("Failed to fetch invoice details for client {$eachclient} / BLAAINNM {$BLAAINNM}: " . $e->getMessage(), 'ERROR');
+            $main_result2 = [];
+        }
+        // MS06APR2026 - end
 
         // Build the HTML content
         $htmlContent .= '<body class="invoice-body remittances-invoice-body">
@@ -809,29 +842,60 @@ LEFT JOIN
                         </thead>
                         <tbody>';
 
+        // ---------------------------------------------------------------------
+        // MS06APR2026 - start
+        // Query for vendor numbers — replaced PDO $conndb2 with AS400 ODBC connection
+        // ---------------------------------------------------------------------                
+
         // Query for detailed data
-        $Query2main = "SELECT VENDORNUM FROM RMAACABHS
+        $Query2main = "SELECT VENDORNUM FROM RMAACABLF
             WHERE BILLDATE = '" . $billdate . "' AND PYALORGCD = '" . $eachclient . "' AND BLAAINNM='" . $BLAAINNM . "' AND RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51' and BLAAINNM like'%R%' group by VENDORNUM ";
-        $Query2mainprep = $conndb2->prepare($Query2main); 
-        $Query2mainprep->execute();
-        $Query2mainprep->setFetchMode(PDO::FETCH_OBJ); 
-        $main_result2main = $Query2mainprep->fetchAll();
+        // $Query2mainprep = $conndb2->prepare($Query2main);   // MS06APR2026
+        // $Query2mainprep->execute();                         // MS06APR2026
+        // $Query2mainprep->setFetchMode(PDO::FETCH_OBJ);      // MS06APR2026
+        // $main_result2main = $Query2mainprep->fetchAll();    // MS06APR2026
+
+        try {
+            $as400conn       = connectAS400();
+            $main_result2main = odbc_fetch_all_obj($as400conn, $Query2main);
+            odbc_close($as400conn);                            // MS06APR2026 - close after query
+            writeLog("Vendor number query for client {$eachclient} / BLAAINNM {$BLAAINNM} returned " . count($main_result2main) . " record(s).", 'INFO');
+        } catch (Exception $e) {
+            writeLog("Failed to fetch vendor numbers for client {$eachclient} / BLAAINNM {$BLAAINNM}: " . $e->getMessage(), 'ERROR');
+            $main_result2main = [];
+        }
+        // MS06APR2026 - end
 
         $totalfirmwise = 0;
         $totalfirmwisetotalfee =0;
         $totalfirmwisecliamnt =0;
         $totalfirmwisesetaside=0;
         $totremittedall=0;
-               
+        
+        // -----------------------------------------------------------------
+        // MS06APR2026 - start
+        // Query for detailed row data — replaced PDO $conndb2 with AS400 ODBC connection
+        // -----------------------------------------------------------------
 
         foreach ($main_result2main as $mainVENDORNUM) {
             $VENDORNUM = $mainVENDORNUM->VENDORNUM;
-            $getdata = "SELECT LVL2,RMSCORPNM1,RMSCORPNM2, BACCTN, RMSACCTNUM, PAIDDATE, RMSTRANCDE, RMSTRANDSC, INVCLIENT, VENDORNUM, INVOICENO,COLLAM,FEEST ,SETASIDES from RMAACABHS
+            $getdata = "SELECT LVL2,RMSCORPNM1,RMSCORPNM2, BACCTN, RMSACCTNUM, PAIDDATE, RMSTRANCDE, RMSTRANDSC, INVCLIENT, VENDORNUM, INVOICENO,COLLAM,FEEST ,SETASIDES from RMAACABLF
                 WHERE BILLDATE = '" . $billdate . "' AND PYALORGCD = '" . $eachclient . "' AND BLAAINNM='" . $BLAAINNM . "' AND RMSTRANCDE >='50' and RMSTRANCDE <= '59'and RMSTRANCDE <> '51' and BLAAINNM like'%R%' AND VENDORNUM='" . $VENDORNUM . "'";
-            $getdataprep = $conndb2->prepare($getdata); 
-            $getdataprep->execute();
-            $getdataprep->setFetchMode(PDO::FETCH_OBJ); 
-            $getdatres = $getdataprep->fetchAll();
+            // $getdataprep = $conndb2->prepare($getdata);    // MS06APR2026
+            // $getdataprep->execute();                       // MS06APR2026
+            // $getdataprep->setFetchMode(PDO::FETCH_OBJ);    // MS06APR2026
+            // $getdatres = $getdataprep->fetchAll();         // MS06APR2026
+
+            try {
+                $as400conn  = connectAS400();
+                $getdatres  = odbc_fetch_all_obj($as400conn, $getdata);
+                odbc_close($as400conn);                        // MS06APR2026 - close after query
+                writeLog("Detail data query for client {$eachclient} / VENDORNUM {$VENDORNUM} returned " . count($getdatres) . " record(s).", 'INFO');
+            } catch (Exception $e) {
+                writeLog("Failed to fetch detail data for client {$eachclient} / VENDORNUM {$VENDORNUM}: " . $e->getMessage(), 'ERROR');
+                $getdatres = [];
+            }
+            // MS06APR2026 - end
 
             $grsrecomid=0;
             $firmfeemid=0;
