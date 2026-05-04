@@ -54,11 +54,11 @@ function writeLog($message, $level = 'INFO') {
 
 // MS06APR2026 - start
 // AS400 ODBC connection constants — update DSN/user/pass as per /etc/odbc.ini
-define('AS400_DSN',     'DB2');              // DSN name configured in /etc/odbc.ini
-define('AS400_HOST',    '192.168.21.8');     // AS400 hostname or IP
-define('AS400_LIB',     'SABINESH');         // Default library/schema
-define('AS400_USER',    'TESTADMIN');        // AS400 user profile
-define('AS400_PASS',    'x1ns8@p5d7');       // AS400 password
+define('AS400_DSN',     'DB2');                 // DSN name configured in /etc/odbc.ini
+define('AS400_HOST',    '192.168.21.202');      // AS400 hostname or IP
+define('AS400_LIB',     'SABINESH', 'AACALIB'); // Default library/schema
+define('AS400_USER',    'MSAYYAD');             // AS400 user profile
+define('AS400_PASS',    'Qwerty@143');          // AS400 password
 /**
  * Connect to AS400 via ODBC
  * @return resource ODBC connection resource
@@ -650,19 +650,19 @@ AggregatedTable1 AS (
     SELECT
         BLAAINNM,
         VENDORNUM,
-        rmscorpnm2,
-        rmscorpnm1,
-        RMSACCTNUM,
-        EXPORTDATE,
-        RMSTRANDSC,
-        RMSTRANCDE,
-        pyalorgcd,
+        MIN(rmscorpnm2) AS rmscorpnm2,    // MIN() used to make it valid select list to run on AS400 without fail and get the actual value
+        MIN(rmscorpnm1) AS rmscorpnm1,   
+        MIN(RMSACCTNUM) AS RMSACCTNUM,   
+        MIN(EXPORTDATE) AS EXPORTDATE,   
+        MIN(RMSTRANDSC) AS RMSTRANDSC,   
+        MIN(RMSTRANCDE) AS RMSTRANCDE,   
+        MIN(pyalorgcd) AS pyalorgcd,     
         SUM(FEES) AS FEES,
         SUM(COLLAM) AS COLLAM,
         SUM(SETASIDES) AS SETASIDES,
         SUM(FEESA) AS FEESA,
-        LVL2,
-         ROFFCD
+        MIN(LVL2) AS LVL2,   
+        MIN(ROFFCD) AS ROFFCD
     FROM
         RMAACABLF
     WHERE
@@ -675,15 +675,15 @@ AggregatedTable1 AS (
 ),
 AggregatedTable2 AS (
     SELECT
-        RCLNM1,
-        RCLNM2,
-        RCLAD2,
-        RCLCTY,
-        RCLST,
-        RCLZIP,
+        MIN(RCLNM1) AS RCLNM1,    // MIN() used to make it valid select list to run on AS400 without fail and get the actual value
+        MIN(RCLNM2) AS RCLNM2,
+        MIN(RCLAD2) AS RCLAD2,
+        MIN(RCLCTY) AS RCLCTY,
+        MIN(RCLST) AS RCLST,
+        MIN(RCLZIP) AS RCLZIP,
         RCLCD
     FROM
-        RMRMCLNM
+        AACALIB.RMRMCLNM          // AACALIB used to read the RMRMCLNM table from AS400
     GROUP BY
         RCLCD
 )
