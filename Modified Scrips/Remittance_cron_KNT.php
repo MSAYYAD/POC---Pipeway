@@ -650,7 +650,7 @@ AggregatedTable1 AS (
     SELECT
         BLAAINNM,
         VENDORNUM,
-        MIN(rmscorpnm2) AS rmscorpnm2,    // MIN() used to make it valid select list to run on AS400 without fail and get the actual value
+        MIN(rmscorpnm2) AS rmscorpnm2,    -- MIN() used to make it valid select list to run on AS400 without fail and get the actual value
         MIN(rmscorpnm1) AS rmscorpnm1,   
         MIN(RMSACCTNUM) AS RMSACCTNUM,   
         MIN(EXPORTDATE) AS EXPORTDATE,   
@@ -675,7 +675,7 @@ AggregatedTable1 AS (
 ),
 AggregatedTable2 AS (
     SELECT
-        MIN(RCLNM1) AS RCLNM1,    // MIN() used to make it valid select list to run on AS400 without fail and get the actual value
+        MIN(RCLNM1) AS RCLNM1,    -- MIN() used to make it valid select list to run on AS400 without fail and get the actual value
         MIN(RCLNM2) AS RCLNM2,
         MIN(RCLAD2) AS RCLAD2,
         MIN(RCLCTY) AS RCLCTY,
@@ -683,7 +683,7 @@ AggregatedTable2 AS (
         MIN(RCLZIP) AS RCLZIP,
         RCLCD
     FROM
-        AACALIB.RMRMCLNM          // AACALIB used to read the RMRMCLNM table from AS400
+        AACALIB.RMRMCLNM          -- AACALIB used to read the RMRMCLNM table from AS400
     GROUP BY
         RCLCD
 )
